@@ -20,9 +20,11 @@ def calc_expectedloss(eco_rules, gamestate, side):
     returns the expected loss reward to be received following a loss in the round to take place
     '''
     if side.lower()=='ct':
-        return ((gamestate['ct_loss']+1)*eco_rules['loss_increment'])+eco_rules['loss_reward']
+        loss = min(gamestate['ct_loss']+1, eco_rules['max_loss'])
+        return (loss*eco_rules['loss_increment'])+eco_rules['loss_reward']
     elif side.lower()=='t':
-        return ((gamestate['t_loss']+1)*eco_rules['loss_increment'])+eco_rules['loss_reward']
+        loss = min(gamestate['t_loss']+1, eco_rules['max_loss'])
+        return (loss*eco_rules['loss_increment'])+eco_rules['loss_reward']
     else:
         print("Invalid Side")
         return 
@@ -73,7 +75,7 @@ def process_mny_CT(eco_rules, gamestate, decision):
         mny_invest = max([val for val in eco_rules['ct_bl'] if gamestate['ct_mny'] >= val])
         mny_remain = gamestate['ct_mny']- mny_invest
     if decision=='F':
-        mny_invest = round(gamestate['ct_mny']*eco_rules['force_percent'], 0)
+        mny_invest = round(gamestate['ct_mny']*eco_rules['force_rate'], 0)
         mny_remain = gamestate['ct_mny']- mny_invest
     if decision=='S':
         mny_invest = 0
@@ -87,7 +89,7 @@ def process_mny_T(eco_rules, gamestate, decision):
         mny_invest = max([val for val in eco_rules['t_bl'] if gamestate['t_mny'] >= val])
         mny_remain = gamestate['t_mny']- mny_invest
     if decision=='F':
-        mny_invest = round(gamestate['t_mny']*eco_rules['force_percent'], 0)
+        mny_invest = round(gamestate['t_mny']*eco_rules['force_rate'], 0)
         mny_remain = gamestate['t_mny']- mny_invest
     if decision=='S': 
         mny_invest = 0
@@ -106,14 +108,9 @@ def play_round(eco_rules, gamestate):
             ii.) Calculates round odds 
             iii.) PLAY:
                 - Roll() and decide winner
-                    = if CT win
-                            - calculate CT remaining money 
-                            - Did Ts plant? (Buy/Force?)
-                            - calculate T remaining money
-                    = if T win
-                            - calculate T remaining money (constant player alive)
-                            - Did CTs save players? (B/F irrelevant)
-                            - calculate CT remaining money
+                    - use roll odds to determine if plant occured
+                    - Consider buys and odds to determine ending economics
+                    - Consider saving by CT if Ts win (on buys only)
                  - Update loss tracker/score
                  - Return round_notation
     '''
@@ -127,66 +124,82 @@ def play_round(eco_rules, gamestate):
     #Establish Odds of CT winning round / T plant 
     ct_odds = (ct_eco[0]+1)/(t_eco[0]*eco_rules.get('t_win_lean', 1) + ct_eco[0]) #save ~guarantees loss
     plant_odds = (ct_eco[0]+1)/(t_eco[0]*eco_rules.get('t_plant_lean', 1) + ct_eco[0])
-    
+
     #PLAY (no eco wins)
     roll = random.random()
     if roll<ct_odds:
         winner='CT'
-        ct_eco[1] = min(ct_eco[1] + eco_rules['win_reward'] + eco_rules['kill_reward'] + round(ct_eco[0]*eco_rules['win_live_rate']), eco_rules['max_mny'])
-        
-        #Bomb Plant? (Only possible on Buys/Forces)
+
+        #Bomb Plant?
         if t=='B':
-            if roll<plant_odds:
-                winner='CT_bp'
-                t_eco[1] = min(t_eco[1] + calc_expectedloss(eco_rules, gamestate, 't') + eco_rules['plant_reward'], eco_rules['max_mny'])
+            if roll<((eco_rules['t_win_lean']*ct_odds)-plant_odds):
+                event = 'bomb_plant_buy'
+                ct_eco[1] = min(ct_eco[1] + eco_rules['win_reward_obj'] + eco_rules['kill_reward'] + round(ct_eco[0]*eco_rules['win_LR_obj']), eco_rules['max_mny'])
+                t_eco[1] = min(t_eco[1] + calc_expectedloss(eco_rules, gamestate, 't') + eco_rules['plant_reward'] + eco_rules['kill_reward'], eco_rules['max_mny'])
             else:
-                t_eco[1] =  min(t_eco[1] + calc_expectedloss(eco_rules, gamestate, 't'), eco_rules['max_mny'])
+                event = 'none'
+                ct_eco[1] = min(ct_eco[1] + eco_rules['win_reward_kill'] + eco_rules['kill_reward'] + round(ct_eco[0]*eco_rules['win_LR_kill']), eco_rules['max_mny'])
+                t_eco[1] =  min(t_eco[1] + calc_expectedloss(eco_rules, gamestate, 't') + eco_rules['kill_reward']*(2/3), eco_rules['max_mny'])
+                
         elif t=='F':
-            if roll<eco_rules['force_plant_odds']:
-                winner='CT_fp'
-                t_eco[1] = min(t_eco[1] + calc_expectedloss(eco_rules, gamestate, 't') + eco_rules['plant_reward'], eco_rules['max_mny'])
+            if roll<(ct_odds-plant_odds):
+                event='bomb_plant_force'
+                ct_eco[1] = min(ct_eco[1] + eco_rules['win_reward_obj'] + eco_rules['kill_reward'] + round(ct_eco[0]*eco_rules['win_LR_obj']), eco_rules['max_mny'])
+                t_eco[1] = min(t_eco[1] + calc_expectedloss(eco_rules, gamestate, 't') + eco_rules['plant_reward'] + eco_rules['kill_reward'], eco_rules['max_mny'])
             else:
-                t_eco[1] =  min(t_eco[1] + calc_expectedloss(eco_rules, gamestate, 't'), eco_rules['max_mny'])
+                event = 'none'
+                ct_eco[1] = min(ct_eco[1] + eco_rules['win_reward_kill'] + eco_rules['kill_reward'] + round(ct_eco[0]*eco_rules['win_LR_kill']), eco_rules['max_mny'])
+                t_eco[1] =  min(t_eco[1] + calc_expectedloss(eco_rules, gamestate, 't') + eco_rules['kill_reward']*(1/3), eco_rules['max_mny'])
 
         else:
+            event = 'none'
+            ct_eco[1] = min(ct_eco[1] + eco_rules['win_reward_kill'] + eco_rules['kill_reward'] + round(ct_eco[0]*eco_rules['win_LR_save']), eco_rules['max_mny'])
             t_eco[1] =  min(t_eco[1] + calc_expectedloss(eco_rules, gamestate, 't'), eco_rules['max_mny'])
 
         #Manage Loss/Score
         ct_l = max(gamestate['ct_loss']-1,0)
         t_l = min(gamestate['t_loss']+1, eco_rules['max_loss'])
         t_w = gamestate['t_wins']
+        evt = event
         
     else:
         winner='T'
-        t_eco[1] = min(t_eco[1] + eco_rules['win_reward'] + eco_rules['kill_reward'] + round(t_eco[0]*eco_rules['win_live_rate']), eco_rules['max_mny'])
         
-        #Saving?
-        if roll>eco_rules['ct_save_odds'] and (ct=='B' or ct=='F'):
-            winner='T_s'
-            ct_eco[1] = min(ct_eco[1] + calc_expectedloss(eco_rules, gamestate, 'ct') + ct_eco[0]*(3/10), eco_rules['max_mny'])
+        # Bomb Plant?
+        if roll>(1-(plant_odds/eco_rules['t_win_lean'])):
+            event = "bomb_plant"
+            t_eco[1] = min(t_eco[1] + eco_rules['win_reward_obj'] + eco_rules['kill_reward'] + round(t_eco[0]*eco_rules['win_LR_obj']), eco_rules['max_mny'])
+            if ct=='B':
+                ct_eco[1] = min(ct_eco[1] + calc_expectedloss(eco_rules, gamestate, 'ct') + ct_eco[0]*eco_rules['save_returnrate'], eco_rules['max_mny'])
+            else:
+                ct_eco[1] = min(ct_eco[1] + calc_expectedloss(eco_rules, gamestate, 'ct'), eco_rules['max_mny'])
         else:
+            event = 'none'
+            t_eco[1] = min(t_eco[1] + eco_rules['win_reward_kill'] + eco_rules['kill_reward'] + round(t_eco[0]*eco_rules['win_LR_kill']), eco_rules['max_mny'])
             ct_eco[1] = min(ct_eco[1] + calc_expectedloss(eco_rules, gamestate, 'ct'), eco_rules['max_mny'])
-             
+        
         t_l  = max(gamestate['t_loss']-1,0)
         ct_l = min(gamestate['ct_loss']+1, eco_rules['max_loss'])
         t_w  = gamestate['t_wins']+1
+        evt = event
 
     
     #Update Values
     new_gamestate = {'ct_mny': ct_eco[1],
-                        'ct_loss':ct_l,
-                        't_mny':t_eco[1],
-                        't_loss':t_l,
-                        't_wins':t_w,
-                        'rnds_played':gamestate['rnds_played']+1
+                        'ct_loss': ct_l,
+                        't_mny': t_eco[1],
+                        't_loss': t_l,
+                        't_wins': t_w,
+                        'rnds_played': gamestate['rnds_played']+1
                 }
                 
-    round_notation = {'result':winner,
-                    'CT_mnyinvest': ct_eco[0], 
-                    'CT_buyoption':ct,
-                    'T_mnyinvest': t_eco[0], 
-                    'T_buyoption':t, 
-                    'gamestate':new_gamestate,
+    round_notation = {'winner': winner,
+                        'event': evt,
+                        'CT_mnyinvest': ct_eco[0], 
+                        'CT_buyoption':ct,
+                        'T_mnyinvest': t_eco[0], 
+                        'T_buyoption': t, 
+                        'gamestate': new_gamestate,
                 }
     return round_notation
     
