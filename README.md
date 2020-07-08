@@ -2,11 +2,13 @@
 
 ## Abstract
 
-Counter-Strike : Global Offensive (CSGO) is a tactical first-person-shooter (FPS) for PC whose defusal gamemode is the core of one of the largest eSports in the world. In CSGO, the economy system dictates the tools at the disposable of otherwise essentially equal sides in each round. I propose a stochastic process modeling the economy of a CSGO half in Python which calculates the odds of winning each round, as well as other events that can take place in a round, as a function of the economic rules, the gamestate and the team economic strategy. I use this to build a Monte Carlo Markov Chain simulation which should allow for exploration of the ramifications of changes to either:
+Counter-Strike : Global Offensive (CSGO) is a tactical first-person-shooter (FPS) for PC whose defusal gamemode is the core of one of the largest eSports in the world. In CSGO, the economy system dictates the tools at the disposable of otherwise essentially equal sides in each round. I propose a stochastic process modeling the economy of a CSGO half in Python which calculates the odds of winning each round, as well as other events that can take place in a round, as a function of the economic rules, the gamestate and the team economic strategy (currently static). I use this to build a Monte Carlo Markov Chain simulation which should allow for exploration of the ramifications of changes to either:
     - The economic system/ruleset in the competitive defusal gamemode CSGO  
     - The buying strategy of a team or teams. 
 
-Disclaimer: This is a WIP. In some of the writing I write what I plan to do as if I have done it. 
+Disclaimer: This is a WIP. I can basically guarantee there are bugs. 
+
+**If anyone knows reading this is familiar with how to aquire parsable CSGO match data (on pro/semi-pro teams) such as those returned in the round notation discussed at the end feel free to reach out and email me**
 
 
 ## Introduction
@@ -29,45 +31,69 @@ One unique mechanic of CSGO is the economy system. Teams use weapons, utility an
 
 #### What is all this?
 
-I propose a stochastic process modeling the economy of a CSGO half in Python which calculates the odds of winning each round, as well as other events that can take place in a round, as a function of the economic rules, the gamestate and the team economic strategy. I use this to build a Monte Carlo Markov Chain simulation which should allow for analysis of the ramifications of either changes to the economic system/ruleset in CSGO or the buying strategy of a team or teams.
+I propose a stochastic process modeling the economy of a CSGO half in Python which calculates the odds of winning each round, as well as other events that can take place in a round, as a function of the economic rules, the gamestate and the team economic strategy (currently static). I use this to build a Monte Carlo Markov Chain simulation which should allow for analysis of the ramifications of either changes to the economic system/ruleset in CSGO or the buying strategy of a team or teams.
 
-The initial conditions of the MCMC fundamentally are the economic rules (`eco_rules`) and the gamestate. I define the gamestate as each teams' money, loss counter and the score. The economic rules contains what I call the `market` (the price of all purchasable goods), as well as predefined values such as round win/loss rewards, starting money, max money, max loss, etc. Also in the economic rules are values calculated based on the market/my intuitions regarding the game/statistical analysis which impact the liklihood of different events occuring in a round, or more specifically what I expect to be the average return over time. An area of further research is making some of these values random variables as oppose to even calculated statistics, allowing for more variance. Overall this is a main area of investigation.. Technically the chain is also a function of the buying strategy, and thus the buying strategy is also an initial condition. Currently, this process is hard-coded into the simulation, and so not a parameter.
+The initial conditions of the MCMC fundamentally are the economic rules (`eco_rules`) and the gamestate. I define the gamestate as each teams' money, loss counter and the score. The economic rules contains what I call the `market` (the price of all purchasable goods), as well as predefined values such as round win/loss rewards, starting money, max money, max loss, etc. Also in the economic rules are values calculated based on the market/my intuitions regarding the game/statistical analysis which impact the liklihood of different events occuring in a round, or more specifically what I expect to be the average return over time. An area of further research is making some of these values random variables as oppose to even calculated statistics or ratios, allowing for more variance and complexity. Technically the chain is also a function of the buying strategy, and thus the buying strategy would also an initial condition. Currently, this process is hard-coded into the simulation, and so I do not treat is as a parameter. These two ideas are main areas of investigation and discussed in slightly more depth later on.
 
-In `CS_ntbk` there is an implementation of the module. First you will see the MCMC initial conditions defined and following will be a simulation of a single half with a printout of the gamestate after every round (this is shown as a table in the notebook as well). Below that you will see a simulation of size $n$ stored and used for statistical analysis/visualization. Note that in the notebook there is only a call to `half_simulator()`, which is simply a wrapper for the `play_round()` function, which is where most of the actual round simulation mechanics are called. I talk about this more deeply in **Methodology**. 
-
+In `CS_ntbk` there is an implementation of the module. First you will see the MCMC initial conditions defined and following will be a simulation of a single half with a table showing the `round_notation` and `gamestate` for each round of the half. Below that you will see a simulation of size $n$ stored and used for statistical analysis/visualization. Note that in the notebook there is only a call to `half_simulator()`, which is simply a wrapper for the `play_round()` function, which is where most of the actual round simulation mechanics are called. I cover how this function acts in **Methodology**. 
 
 ## Methodology
 
-Firstly, I should discuss some of the parameters I use and how I calculated them (if any calculation was used at all). The variables in question are the `t_buy_levels, ct_buy_levels, force_percent, t_win_lean, t_plant_lean, win_live_rate, force_plant_odds and ct_save_odds`. The first 5 are calculated, the last 3 are guesses currently. The T and CT buy levels are calculated using the market and what is typically considered a "full-buy" in modern professional CS:GO matches. After manually building 3 levels of buys for each (full, even, light), I realized that because of how I decide to calculate the round odds (using the money invested), T side would be penalized for having cheaper equipment, which is actually an advantage. Thus, I added a multiplier to the money invested by the T side such that if both T and CT are on their "even buy", the odds should be even as well. A similar logic was applied to the odds of the T side planting (which yields more money in the following round) and decided a seperate, larger multiplier would apply which is based on the idea that a T side with a light buy should have even odds against a CT with even buy of getting a bomb plant. This only applies to when the T side decides to buy, not force. The remaining are guesses. I assumed 40% of the team lives on any round win, which is just an attempt at guessing the average. This needs more research in both the analyzation of what actual survival rates are, as well as more complexity to add variance. Similarly, the odds for T side to plant on a force where they lose and the odds the CT side saves given T round win are guesses in which I attempt to equalize their frequency. This is non-trivial, and without doing the probability calculations I am just going to rely on running a lot of simulations and comparing estimates. Perhaps the calculations are a point of interest.
+Firstly, I should discuss some of the parameters I use and how I calculated them (if any calculation was used at all). These values are all found in the notebook and some of their mathematical representations* are shown in the first cell. They are:
+    - `t_buy_levels 
+    - ct_buy_levels 
+    - t_win_lean* 
+    - t_plant_lean* 
+    - force_rate* 
+    - win_LR_kill
+    - win_LR_obj
+    - win_LR_save
+    - save_returnrate` 
+    
+The buy levels are lists which contain what I define as the minimum, maximum and even buy for each side. The maximum buy is the most a team can invest into a single round and the minimum is the lowest price of a buy before it is categorized as a "force". The percentage of your money that is spent when forcing is the price of a vest (most common pistol round buy) over the player starting money. I found the most straightforward method of handling pistol round buying is to simply demand every player spend a predetermined percentage of their money. I then found it fair to call this purchase a "force" and thus imply the `force_rate`. As an avid CSGO player I find this one of the more "poetic" relationships. Also to note, this means saving on pistol round is not a possible strategy for the simulation, but is an area of investigation. I use the even buy value for each side as the metric to equate the round winning probability, to compensate for unequal pricing. Since the T side has cheaper equipment of equal or greater power, I add a multiplier called the "t_lean" to what the T side invests before calculating the odds of the teams winning or the bomb being planted. This calls for 2 leans, "win" and "plant", as the dictionary shows. This is because planting does not necessitate a win for the T side. The economic ramifications of the events following a decision are static. The "win_LR" values are the rates of players alive after winning a round given different round circumstances (win by kill, win by obj, win against save) that the round simulator allows, and technically there is a lose liverate, but it is built in. These are calculated based on my guess of what ends up being saved on average against buys/forces under scenarios, and I use market prices and buy levels to tie them to the economy. I will discuess the save return reate more deeply later on. Converting the economic result of events to RVs is an area of further investigation.
+ Converting the economic result of events to RVs is an area of further investigation. as well as justifying the save return rate are main areas of further investigation. I will mention this again  
+
+(One idea is to tie the saving characteristics to a per-team risk-adversity and the possible buy in the future. This would have to impact the `ct_odds` as well as plant odds. Would this be implemented on a per round level? Or on the whole of the game?)
+
 
 With these, we can discuss the implementation of `play_round()`.
 As mentioned, the `play_round()` handles most of the mechanics. This function can be essentially broken down into 3 parts. Below is the "code doc" (also found in the .py file) to summarize.
         i.)  calls for teams to make a buy decision and invest
-        ii.) Calculates round odds 
-        iii.) PLAY:
-            - Roll() and decide winner
-                = if CT win
-                        - calculate CT remaining money (constant player alive)
-                        - Did Ts plant? (Buy/Force?)
-                        - calculate T remaining money
-                = if T win
-                        - calculate T remaining money (constant player alive)
-                        - Did CTs save players? (B/F irrelevant)
-                        - calculate CT remaining money
-             - Update loss tracker/score
-             - Return round_notation
+            ii.) Calculates round odds 
+            iii.) PLAY:
+                - Roll() and decide winner
+                    - use roll odds to determine if plant occured
+                    - Consider buys and odds to determine ending economics
+                    - Consider saving by CT if Ts win (on CT buys only)
+                 - Update loss tracker/score
+                 - Return round_notation
              
              
-Breaking down the first part, this is a hard-coded buying strategy for each side that is implemented. It is broken up into a `buy_calc_T/CT` which decides whether to buy, save or force. The underlying logic behind the buying strategy is pretty straightfoward to any familiar with CS. If there is enough money to buy what is calculated to be the minimum buy for a side, then buy. Otherwise save unless it is the last round, first round, or the other team also cannot buy, in which case force. I want to note here that the decision process does "cheat" and looks at the other teams money directly before the round starts, which you cannot do in CSGO (but can in Valorant for example). I found this reasonable because, especially in the 'early-game' (before the first round of both sides buying) when this mechanic occurs often, good teams do have a very good sense of the opposing economy, which is only lost track of after entering the 'mid-game' (if at all). After this decision made, it is then passed to a seocnd function `process_mny_T/CT` which returns the money invested and money remain for the side. This is also hard-coded processing and in this function, a save will cause a team to spend literally 0 dollars, a force will cause a team to spend a calculated percetnage of the team's money, and a buy will cause the team to buy at the maximum possible buy level calculated. A future prospect will be to make the `play_round()` function accept the buying strategy as an argument, as oppose to it directly calling the specified buying functions, allowing for the exploration of different buying strategies from a team. The round response variance (the amount of variance in the possible outcomes that are permitted in this iteration of `play_round()`) might need to become more robust before this would be fruitful.
+Breaking down the first part, this is a hard-coded buying strategy for each side that is implemented. It is broken up into a `buy_calc_T/CT` which decides whether to buy, save or force. The underlying logic behind the buying strategy is pretty straightfoward to any familiar with CS. If there is enough money to buy what is calculated to be the minimum buy for a side, then buy. Otherwise save unless it is the last round, first round, or the other team also cannot buy, in which case force. I want to note here that the decision process does "cheat" and looks at the other teams money directly before the round starts, which you cannot do in CSGO (but can in Valorant for example). I found this reasonable because, especially in the *early-game* (before the first round of both sides buying) when this mechanic occurs often, good teams do have a very good sense of the opposing economy, which is only lost track of after entering the *mid-game* (if at all). 
 
-After the buying decisions and money is calculated, this information is used to calculate the round odds `ct_odds` (odds the CT side wins the round) and `plant_odds` (odds the T side plants). These odds are defined as 
+After this decision is made, it is then passed to a second function `process_mny_T/CT` which returns the money invested and money remain for the side. This is also hard-coded processing and in this function, a save will cause a team to spend literally 0 dollars, a force will cause a team to spend a calculated percetnage of the team's money, and a buy will cause the team to buy at the maximum possible buy level calculated. A future prospect will be to make the `play_round()` function accept the buying strategy as an argument, as oppose to it directly calling the specified buying functions, allowing for the exploration of different buying strategies from a team. I think the money processing methodology is somewhat robust, such that if someone wanted to add their own buying strategy (essentially a function that take the gamestate and economic rules and outputs one of the possible economic decisions "buy-force-save". One could theoretically add buy levels and a different force rate (even per side), though it is unclear yet how sensitive the simulation would be to that. The round response variance (the amount of variance in the possible outcomes that are permitted in this iteration of `play_round()`) might need to become more robust before this would be truly fruitful.
 
-$$ \text{ct_odds} = \frac{\text{CT money invested}}{\text{CT money invested} + \text{t_win_lean}*\text{T money invest}} $$
+After the buying decisions and money is calculated, this information is used to calculate the round odds `ct_odds` (odds the CT side wins the round) and `plant_odds` (odds the T side plants). These odds are defined in the first cell of the notebook. The values act as thresholds for a uniform rng to decide the events that occur. After using the `ct_odds` to decide a winner, the `plant_odds` is used to determine if the round was won by kills or objective. This ratio is an area of further investigation. 
 
-$$ \text{plant_odds} = \frac{\text{CT money invested}}{\text{CT money invested} + \text{t_plant_lean}*\text{T money invest}} $$
+In CSGO, there is the option to hold on to your buy (commonly called "saving", but since I have named saving a buying decision, I try to refrain from using the word to describe this mechanic in my writing aside from when in quotes), that is stay alive and keep the guns you purchased in the current round for the next round (even in the case of a loss). Technically both sides can do this, but when a T side hold on to their buy(if the bomb was not planted), they would not receive their loss reward (somewhat balancing out the financial benefit of doing so). Because of this, I only consider the ramifications of if the CT side "saves" *when they buy* (which is much more popular on full buy rounds). To handle this, the "save" return rate is currently a guess that I did not tie to even the economy and I just assume that on average 1 person lives on a save per save, who tends to save an awp and util (AWPs are extremely popular to hold on to given their price and power). This values tries to be the average percent of money held on to under all scenarios. In reality, this is not a plausible statistic, even with parsable data. This percentage, and really the whole "saving" mechanic, is maybe the largest areasof investigation.
 
-We then use a uniform rng and use the above values as thresholds for the events that occur. The round is then processed, variables are updated and it returns a dictionary of the round in what I call `round_notation`.
-    
+
+With all of this, it covers at least the most popular events that occur in a CSGO match along with estimations or deductions of their ramifications. Events occuring update the teams' money accordingly, and track if an event occurs. The round is then processed, variables are updated and it returns a dictionary of the round in what I call `round_notation` which also holds the `gamestate`. Formats below:
+
+     - gamestate = {'ct_mny': CT Money Remaining,
+                        'ct_loss': CT Loss Counter,
+                        't_mny': T Money Remaining,
+                        't_loss': T Loss Counter,
+                        't_wins': T Rounds Won,
+                        'rnds_played': Rounds Played }
+                        
+    - round_notation = {'winner': round winner,
+                        'event': bomb_plant OR none,
+                        'CT_mnyinvest': CT Money Invested, 
+                        'CT_buyoption': CT Buy Decision,
+                        'T_mnyinvest': T Money Invested, 
+                        'T_buyoption': T Buy Decision, 
+                        'gamestate':   Current gamestate}
 
 ## Notes
 
