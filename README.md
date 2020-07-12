@@ -8,7 +8,7 @@ Counter-Strike : Global Offensive (CSGO) is a tactical first-person-shooter (FPS
 
 Disclaimer: This is a WIP. I can basically guarantee there are bugs/limitations. 
 
-**If anyone knows reading this is familiar with how to aquire parsable CSGO match data (on pro/semi-pro teams) such as those returned in the round notation discussed at the end feel free to reach out and email me**
+**If anyone reading this is familiar with how to aquire parsable CSGO match data (on pro/semi-pro teams) such as those returned in the round notation discussed in the doc file feel free to reach out and/or email me**
 
 
 ## Current Implementation
