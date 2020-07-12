@@ -33,15 +33,24 @@ In `CS_ntbk` there is an implementation of the module. First you will see the MC
 ## Methodology
 
 Firstly, I should discuss some of the parameters I use and how I calculated them (if any calculation was used at all). These values are all found in the notebook and some of their mathematical representations* are shown in the first cell. They are:
-    - `t_buy_levels 
+
+    - t_buy_levels
+    
     - ct_buy_levels 
+    
     - t_win_lean* 
+    
     - t_plant_lean* 
+    
     - force_rate* 
+    
     - win_LR_kill
+    
     - win_LR_obj
+    
     - win_LR_save
-    - save_returnrate` 
+    
+    - save_returnrate
     
 The buy levels are lists which contain what I define as the minimum, maximum and even buy for each side. The maximum buy is the most a team can invest into a single round and the minimum is the lowest price of a buy before it is categorized as a "force". The percentage of your money that is spent when forcing is the price of a vest (most common pistol round buy) over the player starting money. I found the most straightforward method of handling pistol round buying is to simply demand every player spend a predetermined percentage of their money. I then found it fair to call this purchase a "force" and thus imply the `force_rate`. As an avid CSGO player I find this one of the more "poetic" relationships. Also to note, this means saving on pistol round is not a possible strategy for the simulation, but is an area of investigation. I use the even buy value for each side as the metric to equate the round winning probability, to compensate for unequal pricing. Since the T side has cheaper equipment of equal or greater power, I add a multiplier called the "t_lean" to what the T side invests before calculating the odds of the teams winning or the bomb being planted. This calls for 2 leans, "win" and "plant", as the dictionary shows. This is because planting does not necessitate a win for the T side. The economic ramifications of the events following a decision are static. The "win_LR" values are the rates of players alive after winning a round given different round circumstances (win by kill, win by obj, win against save) that the round simulator allows, and technically there is a lose liverate, but it is built in. These are calculated based on my guess of what ends up being saved on average against buys/forces under scenarios, and I use market prices and buy levels to tie them to the economy. I will discuess the save return reate more deeply later on. Converting the economic result of events to RVs is an area of further investigation.
  Converting the economic result of events to RVs is an area of further investigation. as well as justifying the save return rate are main areas of further investigation. I will mention this again  
@@ -90,29 +99,31 @@ With all of this, it covers at least the most popular events that occur in a CSG
 
 ## Notes
 
+Other than reviewing the second round results as well as the transition from CT favored buy rounds to T favored buy rounds, below are my notes on the project. 
 
-Anything under failing is something that needs to be addressed to call the project complete. Points to review are nice additions/considerations at a future date.
 
-#### Failings   
-    - More Robust Economy (accept complexity)
-        = Eco buying
-        = Variance in PLayers surviving
-        = "Stealing" (saving guns you didnt buy)
-        = Kill/Plant Reward
-        = T Saving/ CT Double Save?
-    - Visualization/StatAnalysis Tools for handling game dictionary]
-    - Compare Simulation Results to (preferably) T1 Pro stats
+#### Areas of Investigation  
+- **Compare Simulation Results to (preferably) T1 Pro stats**
+- Turn certain round outcomes to RVs
+    = # lived
+    = $ returned from kills
+    = # saved
+    = round odds (?)
+- Introduce Eco Buying (not just full-save)
+- More Robust Economy
+    = "Stealing" (saving guns you didnt buy)
+    = Kill/Plant Reward
+    = Different gun rewards
+    = T Saving/ CT Double Save?
+- Visualization/StatAnalysis Tools for handling game dictionary]
+
     
     
 #### Points to review
-    - Add Parameters
-        - Map
-        - Buying Strat
-    - teams look into other teams money for buy (handling the 'Mid-game')
-    - No mixed buy possibility
-    - Using individual player economy as proxy for teams 
-        = i.e. averaging out an AWPs price across team
-    - Using RL to deduce optimal buying strat? 
-    - Use more sophisticated eco_rules
-    - Estimated buy levels based on current buys
-        = should extrapolate from base prices
+- Add Map Parameter (to weight T-leans)
+- teams look into other teams money for buy (handling the 'Mid-game')
+- Using individual player economy as proxy for teams 
+    = i.e. averaging out an AWPs price across team
+- Allowing buying strategy as parameter
+    = Using RL to deduce optimal buying strat? 
+    = Estimated buy levels based on current buys
